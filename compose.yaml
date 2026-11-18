@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: docker.io/postgres:16-alpine
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro 
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    env_file: 
+      - .env
+    #domain owner keeps this env
+volumes:
+  pgdata:

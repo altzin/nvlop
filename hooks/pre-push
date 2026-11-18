@@ -1,0 +1,34 @@
+<#!/usr/bin/env bash
+# .git/hooks/pre-push
+
+REDIS_HOST="192.168.x.x" # Your Proxmox LXC IP
+
+# Git provides push details via stdin: <local_ref> <local_sha> <remote_ref> <remote_sha>
+while read local_ref local_sha remote_ref remote_sha; do
+    
+    # If remote_sha is all zeros, it is a new branch. Diff against main.
+    if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+        DIFF=$(git diff origin/main..$local_sha)
+    else
+        # Otherwise, just diff the new commits being pushed
+        DIFF=$(git diff $remote_sha..$local_sha)
+    fi
+
+    # Skip if there's no diff
+    if [ -z "$DIFF" ]; then
+        continue
+    fi
+
+    # Package the payload securely using jq to handle multi-line string escaping
+    PAYLOAD=$(jq -n \
+        --arg sha "$local_sha" \
+        --arg diff "$DIFF" \
+        '{commit: $sha, diff: $diff}')
+
+    # Push to Redis and send to background to ensure zero blocking
+    redis-cli -h "$REDIS_HOST" LPUSH ai_test_queue "$PAYLOAD" >/dev/null 2>&1 &
+    
+done
+
+# Always exit 0 so the actual git push is allowed to proceed
+exit 0
